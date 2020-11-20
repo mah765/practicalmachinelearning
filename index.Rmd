@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## Background
 This is the final project for the Coursera Machine Learning in R course.
 
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
 
 ## Load necessary packages + data
 First we load a few packages.
@@ -32,7 +33,7 @@ test <- read_csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testin
 
 ## Explore data structure
 
-Here we check the data structure, and then look for ways to reduce data complexity and prep it for the model fitting.
+Here we check the data structure, and then look for ways to reduce data complexity and prep it for the model fitting. Generally it seems we are able to reduce the number of predictors using PCA, as well as remove a few variables that do not add any information that is helpful for classification modeling.
 
 ```{r structure, echo=TRUE}
 # check out the structure
@@ -63,7 +64,7 @@ testt <- predict(preProcValues, test)
 
 ## Data partitioning and model fitting
 
-Here we partition the training data into a training set and a validation set.
+Here we partition the training data into a training set and a validation set. (We leave the test set for prediction later.)
 ```{r partition, echo=TRUE}
 # now partition into a training and validation set
 set.seed(007)
@@ -72,10 +73,10 @@ traint <- train[inTrain, ]
 validt <- train[-inTrain, ]
 ```
 
-We then fit three different ML models.
+We then fit three different ML models: (1) a random forest model, (2) a gradient boosting machine model, and (3) a linear discriminant analysis model. We will then review the results of each, focusing on the accuracy metric.
 ```{r models}
 # fit 3 candidate models on the reduced data form of the training set
-mod.rf <- train(classe ~ ., method = "rf", data=traint)
+mod.rf <- train(classe ~ ., method = "rf", data=traint, trControl=trainControl(method='cv'), number=5, allowParallel=TRUE )
 mod.gbm <- train(classe ~ ., method = "gbm", data=traint, verbose=FALSE)
 mod.lda <- train(classe ~ ., method = "lda", data=traint)
 ```
@@ -96,7 +97,7 @@ confusionMatrix(predict(mod.lda, traint), as.factor(traint$classe))
 # the random forest has by far the highest accuracy
 ```
 
-And let's also confirm it works well on the validation set:
+And let's also confirm it works well on the validation set. We expect this out-of-sample error rate to be approximately 1 minus the accuracy of the chosen ML model (in this case, the random forest model with an in-sample accuracy of 98.8%), or approximately 1.2%.
 ```{r validation}
 # apply to the validation set
 validt.preds.rf <- predict(mod.rf, validt)
