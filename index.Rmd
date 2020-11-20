@@ -1,0 +1,122 @@
+---
+title: 'Practical ML in R: Final Project'
+author: "MH"
+date: "11/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Background
+This is the final project for the Coursera Machine Learning in R course.
+
+
+## Load necessary packages + data
+First we load a few packages.
+```{r packages, echo=TRUE}
+suppressMessages(library(tidyverse))
+suppressMessages(library(readr))
+suppressMessages(library(caret))
+suppressMessages(library(randomForest))
+suppressMessages(library(gbm))
+suppressMessages(library(reshape2))
+```
+
+Next we load the training and test sets.
+```{r load data, echo=FALSE, message=FALSE, warning=FALSE}
+train_raw <- read_csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+test <- read_csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+## Explore data structure
+
+Here we check the data structure, and then look for ways to reduce data complexity and prep it for the model fitting.
+
+```{r structure, echo=TRUE}
+# check out the structure
+dim(train_raw)
+# let's remove the first seven columns as they appear unrelated to predicting classe
+train <- train_raw[, -c(1:7)]
+# now let's identify columns with no missing values and get rid of the others
+keepCols <- which(colMeans(is.na(train))==0)
+train <- train[, keepCols]
+```
+
+Let's also look to see if we can use principal components analysis to reduce the number of columns we need:
+```{r pca, echo=TRUE}
+# how closely correlated are the predictors with each other?
+cor(train[,1:52]) %>% melt(.) %>% filter(Var1!=Var2) %>% arrange(desc(value)) %>%
+  ggplot() +
+  geom_density(aes(value), fill="royalblue", alpha=.5, color="black") +
+  theme_minimal() +
+  xlab("Correlation") +
+  ggtitle("Density Plot of Correlation Between Predictors")
+  
+# looks like some variables are highly correlated
+# we can reduce the number of predictors with PCA
+preProcValues <- preProcess(train, method = c("center", "scale","pca"))
+traint <- predict(preProcValues, train)
+testt <- predict(preProcValues, test)
+```
+
+## Data partitioning and model fitting
+
+Here we partition the training data into a training set and a validation set.
+```{r partition, echo=TRUE}
+# now partition into a training and validation set
+set.seed(007)
+inTrain <- createDataPartition(traint$classe, p = 0.7, list = FALSE)
+traint <- train[inTrain, ]
+validt <- train[-inTrain, ]
+```
+
+We then fit three different ML models.
+```{r models}
+# fit 3 candidate models on the reduced data form of the training set
+mod.rf <- train(classe ~ ., method = "rf", data=traint)
+mod.gbm <- train(classe ~ ., method = "gbm", data=traint, verbose=FALSE)
+mod.lda <- train(classe ~ ., method = "lda", data=traint)
+```
+
+Let's review the results of each model:
+```{r review, echo=T}
+mod.rf
+mod.gbm
+mod.lda
+```
+
+Let's compare results:
+```{r results, echo=TRUE}
+# check results
+confusionMatrix(predict(mod.rf, traint), as.factor(traint$classe))
+confusionMatrix(predict(mod.gbm, traint), as.factor(traint$classe))
+confusionMatrix(predict(mod.lda, traint), as.factor(traint$classe))
+# the random forest has by far the highest accuracy
+```
+
+And let's also confirm it works well on the validation set:
+```{r validation}
+# apply to the validation set
+validt.preds.rf <- predict(mod.rf, validt)
+# still excellent accuracy
+confusionMatrix(validt.preds.rf, as.factor(validt$classe))
+```
+
+## Prediction
+
+Finally, let's apply once to the test set to get our final results:
+```{r test}
+# finally, apply to test set
+test.preds.rf <- predict(mod.rf, test)
+
+# view
+test.preds.rf
+```
+
+
+
+
+
+
